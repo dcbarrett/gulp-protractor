@@ -1,35 +1,26 @@
-'use strict';
 var es = require('event-stream');
+var fs = require('fs');
 var path = require('path');
-var childProcess = require('child_process');
+var child_process = require('child_process');
+var async = require('async');
 var PluginError = require('gulp-util').PluginError;
-var winExt = /^win/.test(process.platform) ? '.cmd' : '';
+var winExt = /^win/.test(process.platform)?".cmd":"";
 
 // optimization: cache for protractor binaries directory
 var protractorDir = null;
-
-function getProtractorCli() {
-	var result = require.resolve('protractor');
-	if (result) {
-		return result.replace('index', 'cli');
-	} else {
-		throw new Error('Please check whether protractor is installed or not.');
-	}
-}
 
 function getProtractorDir() {
 	if (protractorDir) {
 		return protractorDir;
 	}
-	var result = require.resolve('protractor');
+	var result = require.resolve("protractor");
 	if (result) {
-		// console.log(result);
-		// result is now something like
-		// c:\\Source\\gulp-protractor\\node_modules\\protractor\\built\\index.js
-		protractorDir = path.resolve(path.join(path.dirname(result), '..', '..', '.bin'));
+		// result is now something like 
+		// c:\\Source\\gulp-protractor\\node_modules\\protractor\\lib\\protractor.js
+		protractorDir = path.resolve(path.join(path.dirname(result), "..", "..", ".bin"));
 		return protractorDir;
 	}
-	throw new Error('No protractor installation found.');
+	throw new Error("No protractor installation found.");	
 }
 
 var protractor = function(options) {
@@ -41,7 +32,6 @@ var protractor = function(options) {
 
 	return es.through(function(file) {
 		files.push(file.path);
-		this.push(file);
 	}, function() {
 		var stream = this;
 
@@ -61,10 +51,7 @@ var protractor = function(options) {
 			args.unshift(options.configFile);
 		}
 
-		// console.log(getProtractorCli());
-
-		// child = childProcess.spawn(path.resolve(getProtractorDir() + '/protractor'), args, {
-		child = childProcess.fork(getProtractorCli(), args, {
+		child = child_process.spawn(path.resolve(getProtractorDir() + '/protractor'+winExt), args, {
 			stdio: 'inherit',
 			env: process.env
 		}).on('exit', function(code) {
@@ -74,7 +61,8 @@ var protractor = function(options) {
 			if (stream) {
 				if (code) {
 					stream.emit('error', new PluginError('gulp-protractor', 'protractor exited with code ' + code));
-				} else {
+				}
+				else {
 					stream.emit('end');
 				}
 			}
@@ -82,44 +70,38 @@ var protractor = function(options) {
 	});
 };
 
-var wdUpdate = function(opts, cb) {
+var webdriver_update = function(opts, cb) {
 	var callback = (cb ? cb : opts);
 	var options = (cb ? opts : null);
-	var args = ['update', '--standalone'];
+	var args = ["update", "--standalone"];
 	if (options) {
-		if (options.webdriverManagerArgs) {
-			options.webdriverManagerArgs.forEach(function(element) {
-				args.push(element);
-			});
-		}
 		if (options.browsers) {
-			options.browsers.forEach(function(element) {
-				args.push('--' + element);
+			options.browsers.forEach(function(element, index, array) {
+				args.push("--" + element);
 			});
 		}
-	}
-	childProcess.spawn(path.resolve(getProtractorDir() + '/webdriver-manager' + winExt), args, {
+	}	
+	child_process.spawn(path.resolve(getProtractorDir() + '/webdriver-manager'+winExt), args, {
 		stdio: 'inherit'
 	}).once('close', callback);
 };
 
-var webdriverUpdateSpecific = function(opts) {
-	return wdUpdate.bind(this, opts);
+var webdriver_update_specific = function(opts) {
+	return webdriver_update.bind(this, opts);
 };
 
-wdUpdate.bind(null, ['ie', 'chrome']);
+webdriver_update.bind(null, ["ie", "chrome"])
 
-var webdriverStandalone = function(cb) {
-	childProcess.spawn(path.resolve(getProtractorDir() + '/webdriver-manager' + winExt), ['start'], {
+var webdriver_standalone = function(cb) {
+	var child = child_process.spawn(path.resolve(getProtractorDir() + '/webdriver-manager'+winExt), ['start'], {
 		stdio: 'inherit'
 	}).once('close', cb);
 };
 
 module.exports = {
 	getProtractorDir: getProtractorDir,
-	getProtractorCli: getProtractorCli,
 	protractor: protractor,
-	webdriver_standalone: webdriverStandalone,
-	webdriver_update: wdUpdate,
-	webdriver_update_specific: webdriverUpdateSpecific
+	webdriver_standalone: webdriver_standalone,
+	webdriver_update: webdriver_update,
+	webdriver_update_specific: webdriver_update_specific
 };
